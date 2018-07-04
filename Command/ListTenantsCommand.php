@@ -23,6 +23,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class ListTenantsCommand extends ContainerAwareCommand
 {
+    protected static $defaultName = 'swp:tenant:list';
+
     /**
      * {@inheritdoc}
      */
@@ -51,7 +53,7 @@ class ListTenantsCommand extends ContainerAwareCommand
             $tenants = $this->getContainer()->get('swp.repository.tenant')->findAll();
         }
 
-        if (0 === count($tenants)) {
+        if (null === $tenants || 0 === count($tenants)) {
             $output->writeln('<error>There are no tenants defined.</error>');
 
             return;

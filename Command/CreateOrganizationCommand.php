@@ -29,6 +29,8 @@ use Symfony\Component\Console\Question\Question;
  */
 class CreateOrganizationCommand extends ContainerAwareCommand
 {
+    protected static $defaultName = 'swp:organization:create';
+
     /**
      * {@inheritdoc}
      */
@@ -55,8 +57,6 @@ EOT
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $name = $input->getArgument('name');
-        $disabled = $input->getOption('disabled');
-
         $default = $input->getOption('default');
         if ($default) {
             $name = OrganizationInterface::DEFAULT_NAME;
@@ -68,15 +68,24 @@ EOT
             throw new \InvalidArgumentException(sprintf('"%s" organization already exists!', $name));
         }
 
-        $organization = $this->createOrganization($name, $disabled);
+        $organization = $this->createOrganization($name, $input);
 
         $this->getObjectManager()->persist($organization);
         $this->getObjectManager()->flush();
 
+        $this->sendOutput($output, $organization);
+    }
+
+    /**
+     * @param OutputInterface       $output
+     * @param OrganizationInterface $organization
+     */
+    protected function sendOutput(OutputInterface $output, $organization)
+    {
         $output->writeln(
             sprintf(
                 'Organization <info>%s</info> (code: <info>%s</info>) has been created and <info>%s</info>!',
-                $name,
+                $organization->getName(),
                 $organization->getCode(),
                 $organization->isEnabled() ? 'enabled' : 'disabled'
             )
@@ -84,11 +93,15 @@ EOT
     }
 
     /**
-     * {@inheritdoc}
+     * @param InputInterface  $input
+     * @param OutputInterface $output
      */
     protected function interact(InputInterface $input, OutputInterface $output)
     {
-        $this->askAndValidateInteract($input, $output, 'name');
+        $default = $input->getOption('default');
+        if (!$default) {
+            $this->askAndValidateInteract($input, $output, 'name');
+        }
     }
 
     /**
@@ -98,9 +111,7 @@ EOT
      */
     protected function askAndValidateInteract(InputInterface $input, OutputInterface $output, $name)
     {
-        $default = $input->getOption('default');
-
-        if (!$input->getArgument($name) && !$default) {
+        if (!$input->getArgument($name)) {
             $question = new Question(sprintf('<question>Please enter %s:</question>', $name));
             $question->setValidator(function ($argument) use ($name) {
                 if (empty($argument)) {
@@ -124,13 +135,13 @@ EOT
      *
      * @return OrganizationInterface
      */
-    protected function createOrganization($name, $disabled)
+    protected function createOrganization($name, $input)
     {
         $organizationFactory = $this->getContainer()->get('swp.factory.organization');
         /** @var OrganizationInterface $organization */
         $organization = $organizationFactory->createWithCode();
         $organization->setName($name);
-        $organization->setEnabled(!$disabled);
+        $organization->setEnabled(!$input->getOption('disabled'));
 
         return $organization;
     }

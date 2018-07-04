@@ -15,7 +15,9 @@
 namespace SWP\Bundle\MultiTenancyBundle\EventListener;
 
 use Doctrine\ORM\EntityManagerInterface;
+use SWP\Bundle\MultiTenancyBundle\MultiTenancyEvents;
 use SWP\Component\MultiTenancy\Context\TenantContextInterface;
+use Symfony\Bridge\Doctrine\RegistryInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 
@@ -37,22 +39,28 @@ class TenantableListener implements EventSubscriberInterface
     protected $entityManager;
 
     /**
+     * @var RegistryInterface
+     */
+    protected $doctrine;
+
+    /**
      * Construct.
      *
-     * @param EntityManagerInterface $entityManager
+     * @param RegistryInterface      $doctrine
      * @param TenantContextInterface $tenantContext
      */
-    public function __construct(EntityManagerInterface $entityManager, TenantContextInterface $tenantContext)
+    public function __construct(RegistryInterface $doctrine, TenantContextInterface $tenantContext)
     {
-        $this->entityManager = $entityManager;
+        $this->doctrine = $doctrine;
         $this->tenantContext = $tenantContext;
     }
 
     /**
      * Enables tenantable filter on kernel.request.
      */
-    public function onKernelRequest()
+    public function enable()
     {
+        $this->lazyLoad();
         $tenant = $this->tenantContext->getTenant();
 
         if ($tenant && $tenant->getId()) {
@@ -64,12 +72,34 @@ class TenantableListener implements EventSubscriberInterface
     }
 
     /**
+     * Disabled tenantable filter.
+     */
+    public function disable()
+    {
+        $this->lazyLoad();
+        $filters = $this->entityManager->getFilters();
+
+        if ($filters->isEnabled('tenantable')) {
+            $filters->disable('tenantable');
+        }
+    }
+
+    /**
      * {@inheritdoc}
      */
     public static function getSubscribedEvents()
     {
         return [
-            KernelEvents::REQUEST => 'onKernelRequest',
+            KernelEvents::REQUEST => 'enable',
+            MultiTenancyEvents::TENANTABLE_ENABLE => 'enable',
+            MultiTenancyEvents::TENANTABLE_DISABLE => 'disable',
         ];
+    }
+
+    private function lazyLoad()
+    {
+        if (null === $this->entityManager) {
+            $this->entityManager = $this->doctrine->getManager();
+        }
     }
 }

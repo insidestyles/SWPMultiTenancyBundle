@@ -17,8 +17,10 @@ namespace spec\SWP\Bundle\MultiTenancyBundle\EventListener;
 use Doctrine\ORM\EntityManagerInterface;
 use PhpSpec\ObjectBehavior;
 use SWP\Bundle\MultiTenancyBundle\EventListener\TenantableListener;
+use SWP\Bundle\MultiTenancyBundle\MultiTenancyEvents;
 use SWP\Component\MultiTenancy\Context\TenantContextInterface;
 use SWP\Component\MultiTenancy\Model\Tenant;
+use Symfony\Bridge\Doctrine\RegistryInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\GetResponseEvent;
@@ -30,10 +32,10 @@ use Symfony\Component\HttpKernel\KernelEvents;
 class TenantableListenerSpec extends ObjectBehavior
 {
     public function let(
-        EntityManagerInterface $entityManager,
+        RegistryInterface $doctrine,
         TenantContextInterface $tenantContext
     ) {
-        $this->beConstructedWith($entityManager, $tenantContext);
+        $this->beConstructedWith($doctrine, $tenantContext);
     }
 
     public function it_is_initializable()
@@ -49,18 +51,20 @@ class TenantableListenerSpec extends ObjectBehavior
     public function it_subscribes_to_event()
     {
         $this::getSubscribedEvents()->shouldReturn([
-            KernelEvents::REQUEST => 'onKernelRequest',
+            KernelEvents::REQUEST => 'enable',
+            MultiTenancyEvents::TENANTABLE_ENABLE => 'enable',
+            MultiTenancyEvents::TENANTABLE_DISABLE => 'disable',
         ]);
     }
 
     public function it_skips_tenantable_filter_on_kernel_request(
         GetResponseEvent $event,
         $tenantContext,
-        $entityManager
+        EntityManagerInterface $entityManager
     ) {
         $tenantContext->getTenant()->shouldBeCalled()->willReturn(new Tenant());
         $entityManager->getFilters()->shouldNotBeCalled();
 
-        $this->onKernelRequest($event)->shouldBeNull();
+        $this->enable($event)->shouldBeNull();
     }
 }
